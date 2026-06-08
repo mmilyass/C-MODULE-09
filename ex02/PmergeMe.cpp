@@ -30,7 +30,7 @@ void PmergeMe::StoreInput(const char **args)
         if (value < 0 || value > INT_MAX)
             throw std::runtime_error("Error");
         dnumbers.push_back(static_cast<int>(value));
-        std::cout << "here" << value << std::endl;
+        // std::cout << "here" << value << std::endl;
 
         vnumbers.push_back(static_cast<int>(value));
     }
@@ -47,8 +47,9 @@ void PrintNumbers(T &container)
     std::cout << "numbers stored: " << std::endl;
     for (typename T::iterator it = container.begin(); it != container.end(); ++it)
     {
-        std::cout << '[' << *it << ']' << std::endl;
+        std::cout << '[' << *it << ']';
     }
+    std::cout << std::endl;
 }
 
 size_t GenerateJacobsthalNumber(size_t k)
@@ -69,27 +70,26 @@ size_t GenerateJacobsthalNumber(size_t k)
 }
 
 template <typename T>
-void pairingSwap(T &container, int sizeOfpairs, T &mainChain, T &pendChain)
+void pairingSwap(T &container, int sizeOfpairs, T &mainChain, T &pendChain, T &bounds)
 {
     if (sizeOfpairs > (int)container.size())
         return;
     for (size_t i = 0; i + sizeOfpairs <= container.size(); i += sizeOfpairs)
     {
+        Ncompare++;
         if (container[i + (sizeOfpairs / 2) - 1] > container[i + sizeOfpairs - 1])
         {
-            Ncompare++;
             std::swap_ranges(container.begin() + i, container.begin() + i + sizeOfpairs / 2, container.begin() + i + sizeOfpairs / 2);
         }
     }
-    pairingSwap(container, sizeOfpairs * 2, mainChain, pendChain);
+    pairingSwap(container, sizeOfpairs * 2, mainChain, pendChain, bounds);
     if (sizeOfpairs < 2)
         return;
-    bool is_odd = (container.size() % sizeOfpairs != 0);
     mainChain.insert(mainChain.end(),
                      container.begin(),
                      container.begin() + sizeOfpairs);
     size_t i;
-    for (i = sizeOfpairs; i < container.size(); i += sizeOfpairs)
+    for (i = sizeOfpairs; i + sizeOfpairs <= container.size(); i += sizeOfpairs)
     {
         size_t firstHalfStart = i;
         size_t firstHalfEnd = i + (sizeOfpairs / 2);
@@ -97,17 +97,23 @@ void pairingSwap(T &container, int sizeOfpairs, T &mainChain, T &pendChain)
         size_t secondHalfEnd = i + sizeOfpairs;
 
         pendChain.insert(pendChain.end(), container.begin() + firstHalfStart, container.begin() + firstHalfEnd);
+        bounds.insert(
+            bounds.end(),
+            container.begin() + secondHalfStart,
+            container.begin() + secondHalfEnd);
         mainChain.insert(mainChain.end(), container.begin() + secondHalfStart, container.begin() + secondHalfEnd);
     }
-    if (is_odd)
+
+    if (i < container.size())
     {
-        pendChain.insert(pendChain.end(), container.begin() + i, container.begin() + i + (sizeOfpairs / 2));
+        pendChain.insert(pendChain.end(), container.begin() + i, container.end());
+
+        for (size_t j = i; j < container.size(); j++)
+            bounds.push_back(mainChain.back());
     }
-    // PrintNumbers(pendChain);
-    // PrintNumbers(mainChain);
-    int prev_jac = 0;
-    int inserted = 0 ;
-    for (int k = 0; true; k++)
+    int prev_jac = 1;
+    int inserted = 0;
+    for (int k = 2; true; k++)
     {
         int curr_jac = GenerateJacobsthalNumber(k);
         int jac_diff = curr_jac - prev_jac;
@@ -117,11 +123,21 @@ void pairingSwap(T &container, int sizeOfpairs, T &mainChain, T &pendChain)
 
         for (int i = jac_diff - 1; i >= 0 && !pendChain.empty(); i--)
         {
+            std::cout << inserted << " " << curr_jac << " " << jac_diff << std::endl;
             typename T::iterator pend_it = pendChain.begin() + i;
-            typename T::iterator bound_it = mainChain.begin() + std::min((int)mainChain.size(), curr_jac + inserted);
-            typename T::iterator pos = std::upper_bound(mainChain.begin(), bound_it, *pend_it);
+
+            int bound_value = bounds[i];
+
+            typename T::iterator bound_it =
+                std::find(mainChain.begin(), mainChain.end(), bound_value);
+
+            typename T::iterator pos =
+                std::upper_bound(mainChain.begin(), bound_it, *pend_it);
+
             mainChain.insert(pos, *pend_it);
+
             pendChain.erase(pend_it);
+            bounds.erase(bounds.begin() + i);
         }
         prev_jac = curr_jac;
         inserted += jac_diff;
@@ -139,13 +155,15 @@ void pairingSwap(T &container, int sizeOfpairs, T &mainChain, T &pendChain)
     container.clear();
     container = mainChain;
     mainChain.clear();
+    pendChain.clear();
+    bounds.clear();
 }
 
 void PmergeMe::run()
 {
     std::deque<int> pendChain;
     std::deque<int> mainChain;
-    pairingSwap(dnumbers, 2, mainChain, pendChain);
+    std::deque<int> bounds;
+    pairingSwap(dnumbers, 2, mainChain, pendChain, bounds);
     PrintNumbers(dnumbers);
-
 }
