@@ -68,26 +68,40 @@ size_t GenerateJacobsthalNumber(size_t k)
     }
     return prev1;
 }
+bool comparing(int value, int element) {
+    Ncompare++;
+    std::cout << "Comparing " << value << " and " << element << std::endl;
+    return value < element; // Or your custom comparison logic
+}
 
-template <typename T>
-void pairingSwap(T &container, int sizeOfpairs, T &mainChain, T &pendChain, T &bounds)
+
+
+template <typename T, typename B>
+void pairingSwap(T &container, int sizeOfpairs, T &mainChain, T &pendChain, B &bounds)
 {
     if (sizeOfpairs > (int)container.size())
         return;
+
     for (size_t i = 0; i + sizeOfpairs <= container.size(); i += sizeOfpairs)
     {
         Ncompare++;
         if (container[i + (sizeOfpairs / 2) - 1] > container[i + sizeOfpairs - 1])
         {
-            std::swap_ranges(container.begin() + i, container.begin() + i + sizeOfpairs / 2, container.begin() + i + sizeOfpairs / 2);
+            std::swap_ranges(container.begin() + i,
+                             container.begin() + i + sizeOfpairs / 2,
+                             container.begin() + i + sizeOfpairs / 2);
         }
     }
+
     pairingSwap(container, sizeOfpairs * 2, mainChain, pendChain, bounds);
+
     if (sizeOfpairs < 2)
         return;
+
     mainChain.insert(mainChain.end(),
                      container.begin(),
                      container.begin() + sizeOfpairs);
+
     size_t i;
     for (i = sizeOfpairs; i + sizeOfpairs <= container.size(); i += sizeOfpairs)
     {
@@ -96,23 +110,34 @@ void pairingSwap(T &container, int sizeOfpairs, T &mainChain, T &pendChain, T &b
         size_t secondHalfStart = i + (sizeOfpairs / 2);
         size_t secondHalfEnd = i + sizeOfpairs;
 
-        pendChain.insert(pendChain.end(), container.begin() + firstHalfStart, container.begin() + firstHalfEnd);
-        bounds.insert(
-            bounds.end(),
-            container.begin() + secondHalfStart,
-            container.begin() + secondHalfEnd);
-        mainChain.insert(mainChain.end(), container.begin() + secondHalfStart, container.begin() + secondHalfEnd);
+        // The partner block starts here in mainChain BEFORE insertion
+        size_t partnerBaseIndex = mainChain.size();
+
+        pendChain.insert(pendChain.end(),
+                         container.begin() + firstHalfStart,
+                         container.begin() + firstHalfEnd);
+
+        // Store partner positions, not partner values
+        for (size_t j = 0; j < (size_t)(sizeOfpairs / 2); ++j)
+            bounds.push_back(partnerBaseIndex + j);
+
+        mainChain.insert(mainChain.end(),
+                         container.begin() + secondHalfStart,
+                         container.begin() + secondHalfEnd);
     }
 
     if (i < container.size())
     {
         pendChain.insert(pendChain.end(), container.begin() + i, container.end());
 
-        for (size_t j = i; j < container.size(); j++)
-            bounds.push_back(mainChain.back());
+        // No partner for leftovers: search the whole chain
+        for (size_t j = i; j < container.size(); ++j)
+            bounds.push_back(mainChain.size());
     }
+
     int prev_jac = 1;
     int inserted = 0;
+
     for (int k = 2; true; k++)
     {
         int curr_jac = GenerateJacobsthalNumber(k);
@@ -121,37 +146,51 @@ void pairingSwap(T &container, int sizeOfpairs, T &mainChain, T &pendChain, T &b
         if (jac_diff > (int)pendChain.size())
             break;
 
-        for (int i = jac_diff - 1; i >= 0 && !pendChain.empty(); i--)
+        for (int idx = jac_diff - 1; idx >= 0 && !pendChain.empty(); --idx)
         {
-            std::cout << inserted << " " << curr_jac << " " << jac_diff << std::endl;
-            typename T::iterator pend_it = pendChain.begin() + i;
+            typename T::iterator pend_it = pendChain.begin() + idx;
 
-            int bound_value = bounds[i];
+            size_t bound_index = bounds[idx];
+            if (bound_index > mainChain.size())
+                bound_index = mainChain.size();
 
-            typename T::iterator bound_it =
-                std::find(mainChain.begin(), mainChain.end(), bound_value);
+            // Search only up to the partner position
+            typename T::iterator bound_it = mainChain.begin() + bound_index;
 
             typename T::iterator pos =
-                std::upper_bound(mainChain.begin(), bound_it, *pend_it);
+                std::upper_bound(mainChain.begin(), bound_it, *pend_it, comparing);
+
+            size_t insertedPos = std::distance(mainChain.begin(), pos);
 
             mainChain.insert(pos, *pend_it);
 
+            // Remove current pend element and its bound
             pendChain.erase(pend_it);
-            bounds.erase(bounds.begin() + i);
+            bounds.erase(bounds.begin() + idx);
+
+            // Shift every remaining bound that is to the right
+            for (typename B::iterator it = bounds.begin();
+                 it != bounds.end();
+                 ++it)
+            {
+                if (*it >= (int)insertedPos)
+                    ++(*it);
+            }
         }
+
         prev_jac = curr_jac;
         inserted += jac_diff;
     }
+
     while (!pendChain.empty())
     {
         typename T::iterator pend_it = pendChain.end() - 1;
-        typename T::iterator pos = std::upper_bound(mainChain.begin(), mainChain.end(), *pend_it);
+        typename T::iterator pos = std::upper_bound(mainChain.begin(), mainChain.end(), *pend_it, comparing);
 
         mainChain.insert(pos, *pend_it);
         pendChain.pop_back();
     }
 
-    // pendChain.clear();
     container.clear();
     container = mainChain;
     mainChain.clear();
@@ -166,4 +205,6 @@ void PmergeMe::run()
     std::deque<int> bounds;
     pairingSwap(dnumbers, 2, mainChain, pendChain, bounds);
     PrintNumbers(dnumbers);
+    std::cout << "Number of comparisons: " << Ncompare << std::endl;
 }
+ 
