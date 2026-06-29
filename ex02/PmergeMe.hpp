@@ -8,6 +8,7 @@
 #include <climits>
 #include <algorithm>
 #include <cstring>
+#include <ctime>
 
 extern unsigned int Ncompare;
 
@@ -17,23 +18,20 @@ typedef struct pairandBound
     std::vector<int> partner; // stores the VALUE of the winner this pend element is paired with
     std::vector<pairandBound> friends;
 
-    pairandBound() : value(0) {}
+    pairandBound() : value(-1) {}
     pairandBound(int v) : value(v) {}
 
-    bool operator==(const pairandBound &other) const { return value == other.value; }
 } pairandBound;
-
-inline std::ostream &operator<<(std::ostream &os, const pairandBound &p)
-{
-    os << p.value;
-    return os;
-}
 
 class PmergeMe
 {
 private:
     std::vector<pairandBound> vnumbers;
     std::deque<pairandBound> dnumbers;
+    std::deque<std::deque<pairandBound> > mainChain;
+    std::vector<std::vector<pairandBound> > mainChain2;
+    std::deque<std::deque<pairandBound> > pendChain;
+    std::vector<std::vector<pairandBound> > pendChain2;
     bool hasstraggler;
     int straggler;
 

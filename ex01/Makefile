@@ -4,7 +4,7 @@ FLAGS = -Wall -Wextra -Werror -std=c++98
 
 NAME = RPN
 
-SCRS = RNP.cpp main.cpp
+SCRS = RPN.cpp main.cpp
 
 OBJS = $(SCRS:.cpp=.o)
 

@@ -20,7 +20,7 @@ void PmergeMe::ParseInput(const char **args)
         for (int j = i - 1; j >= 0; j--)
         {
             if (i > 1 && std::strcmp(args[i], args[j]) == 0)
-                throw std::runtime_error("Error");
+                throw std::runtime_error("Error: two same numbers");
         }
     }
 }
@@ -47,7 +47,6 @@ void PrintNumbers(T &container)
 {
     for (typename T::iterator it = container.begin(); it != container.end(); ++it)
         std::cout << ' ' << it->value;
-    std::cout << std::endl;
 }
 
 int jacobsthal(int k)
@@ -68,197 +67,219 @@ int jacobsthal(int k)
     return prev1;
 }
 
-bool comparing(const pairandBound &a, const pairandBound &b)
+template <typename T>
+bool comparing(const T &a, const T &b)
+{
+    Ncompare++;
+    return a.back().value < b.back().value;
+}
+bool comparingg(const pairandBound &a, const pairandBound &b)
 {
     Ncompare++;
     return a.value < b.value;
 }
 
-template <typename T>
-typename T::iterator findPartner(T &mainChain, int partnerVal)
+template <typename T, typename U>
+void fullContainer(T &container, U &mainChain)
 {
-    if (partnerVal < 0)
-        return mainChain.end();
-    for (typename T::iterator it = mainChain.begin(); it != mainChain.end() && partnerVal > 0; ++it)
+    container.clear();
+    for (typename U::iterator it = mainChain.begin(); it != mainChain.end(); ++it)
     {
-        if (it->value == partnerVal)
+        container.insert(container.end(), it->begin(), it->end());
+    }
+    mainChain.clear();
+}
+
+template <typename T, typename U>
+typename T::iterator findPartner(T &mainChain, U &partnerVal)
+{
+    if (partnerVal.empty())
+        return mainChain.end();
+    for (typename T::iterator it = mainChain.begin(); it != mainChain.end(); ++it)
+    {
+        if (it->back().value == partnerVal.back())
             return it;
     }
     return mainChain.end();
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// pairingSwap  –  the heart of Ford-Johnson
-//
-// WHAT IT DOES (think of groupSize=2 on first call):
-//
-//   container:  [ 5 | 3 | 8 | 1 | 4 | 7 ]
-//                 ^---^   ^---^   ^---^       <-- pairs of size groupSize
-//                left right left right ...
-//
-//   Step 1 – compare each pair, swap so the BIGGER one is always on the RIGHT
-//             also record: left.partner = right.value  (loser remembers winner)
-//
-//   Step 2 – recurse with groupSize*2  (this sorts only the right-block winners)
-//
-//   Step 3 – after recursion returns, build two chains:
-//             mainChain  = winners (right blocks) + a1 (very first left block)
-//             pendChain  = losers  (left blocks, everything else)
-//
-//   Step 4 – insert every pend element into mainChain with binary search,
-//             but only search UP TO its partner (we know pend <= partner,
-//             so the answer is definitely to the LEFT of partner)
-//             Use Jacobsthal order so the search range grows as slowly as possible
-// ─────────────────────────────────────────────────────────────────────────────
-
-template <typename T>
-void pairingSwap(T &container, int groupSize)
+template <typename T, typename U>
+void pairingSwap(T &container, U &mainChain, U &pendChain, int groupSize)
 {
     int half = groupSize / 2;
 
-    if (groupSize > (int)container.size())
-        return;
-
-    for (int i = 0; i + groupSize <= (int)container.size(); i += groupSize)
+    if (groupSize <= (int)container.size())
     {
-        pairandBound &left = container[i + half - 1];
-        pairandBound &right = container[i + groupSize - 1];
-
-        Ncompare++;
-        if (left.value > right.value)
+        for (int i = 0; i + groupSize <= (int)container.size(); i += groupSize)
         {
-            for (int k = 0; k < half; k++)
-                std::swap(container[i + k], container[i + half + k]);
+            pairandBound &left = container[i + half - 1];
+            pairandBound &right = container[i + groupSize - 1];
+
+            Ncompare++;
+            if (left.value > right.value)
+            {
+                for (int j = 0; j < half; j++)
+                    std::swap(container[i + j], container[i + half + j]);
+            }
+            container[i + half - 1].partner.push_back(container[i + groupSize - 1].value);
         }
-        container[i + half - 1].partner.push_back(container[i + groupSize - 1].value);
     }
 
-    pairingSwap(container, groupSize * 2);
-    std::cout << "after pairing" << std::endl;
-    PrintNumbers(container);
-    std::cout << "groupSize=" << groupSize << std::endl;
-    if (groupSize <= 2)
-        return;
-    T pendChain, mainChain;
+    if (groupSize * 2 <= (int)container.size())
+        pairingSwap(container, mainChain, pendChain, groupSize * 2);
+    typename U::value_type s;
+    // if (groupSize < 2)
+    //     return;
 
-    int fullPairs = (container.size() / groupSize) * groupSize;
-    mainChain.insert(mainChain.end(),
-                     container.begin() + half,
-                     container.begin() + groupSize);
-    mainChain.insert(mainChain.begin(),
-                     container.begin(),
-                     container.begin() + half);
-    int i;
-    for (i = groupSize; i + groupSize <= (int)container.size(); i += groupSize)
+    mainChain.push_back(
+        typename U::value_type(
+            container.begin(),
+            container.begin() + half));
+    mainChain.push_back(
+        typename U::value_type(
+            container.begin() + half,
+            container.begin() + groupSize));
+    for (int i = groupSize; i < (int)container.size(); i += groupSize)
     {
-        container[i + half - 1].friends.insert(container[i + half - 1].friends.end(),
-                                               container.begin() + i, container.begin() + (i + half - 1));
-        pendChain.push_back(container[i + half - 1]);
+        size_t pendBegin = i;
+        size_t pendEnd = i + half;
+        size_t mainBegin = i + half;
+        size_t mainEnd = i + groupSize;
+        size_t endOfContainer = container.size();
 
-        mainChain.insert(mainChain.end(),
-                         container.begin() + i + half,
-                         container.begin() + i + groupSize);
+        if (pendEnd <= container.size())
+        {
+            pendChain.push_back(
+                typename U::value_type(
+                    container.begin() + pendBegin,
+                    container.begin() + pendEnd));
+        }
+        else if (i < (int)container.size())
+        {
+            s = typename U::value_type(
+                container.begin() + i,
+                container.end());
+            break;
+        }
+
+        if (mainEnd < endOfContainer)
+        {
+            mainChain.push_back(
+                typename U::value_type(
+                    container.begin() + mainBegin,
+                    container.begin() + mainEnd));
+        }
+        else
+        {
+            s = typename U::value_type(
+                container.begin() + mainBegin,
+                container.begin() + endOfContainer);
+        }
     }
-    int x = container.size() - fullPairs;
-    if (x < groupSize / 2)
-    {
-        mainChain.insert(mainChain.end(),
-                         container.begin() + fullPairs,
-                         container.end());
-    }
-    else
-    {
-        std::cout << "=====================" << i << "=====================" << std::endl;
-        std::cout << "=====================" << x << "=====================" << std::endl;
-        container.back().friends.insert(container.back().friends.end(),
-                                        container.begin() + i, container.end() - 1);
-        std::cout << "container.back().friends: ";
-        PrintNumbers(container.back().friends);
-        pendChain.push_back(container.back());
-    }
-    std::cout << "maiChain: ";
-    PrintNumbers(mainChain);
-    std::cout << "pendChain: ";
-    PrintNumbers(pendChain);
-    // pairingSwap(pendChain, 2);
     int prev_jac = 1;
+    std::vector<bool> inserted(pendChain.size(), false);
+
     for (int k = 2;; k++)
     {
         int curr_jac = jacobsthal(k);
-        int jac_diff = curr_jac - prev_jac;
-        if (jac_diff > (int)pendChain.size())
-            break;
-        for (int idx = jac_diff - 1; idx >= 0 && !pendChain.empty(); idx--)
-        {
-            pairandBound pend = pendChain[idx];
-            typename T::iterator partnerIt = findPartner(mainChain, pend.partner.empty() ? -1 : pend.partner.back());
-            // std::cout << "partnerIt: ";
-            // if (partnerIt != mainChain.end())
-            //     std::cout << partnerIt->value << std::endl;
-            // else
-            //     std::cout << "not found" << std::endl;
-            typename T::iterator searchEnd = (partnerIt == mainChain.end())
-                                                 ? mainChain.end()
-                                                 : partnerIt + 1;
-            typename T::iterator pos =
-                std::upper_bound(mainChain.begin(), searchEnd, pend, comparing);
-            !pend.partner.empty() ? pend.partner.pop_back() : void(); // remove the partner value after using it
 
-            std::cout << "pos value: " << pos->value << std::endl;
-            mainChain.insert(pos, pend);
-            if (!pend.friends.empty())
-            {
-                pos = pos - 1;
-                std::cout << "inserting friends of " << pend.value << ": ";
-                PrintNumbers(pend.friends);
-                std::cout << "pos value: " << pos->value << std::endl;
-                mainChain.insert(pos, pend.friends.begin(), pend.friends.end());
-                pend.friends.clear();
-            }
-            pendChain.erase(pendChain.begin() + idx);
+        if (prev_jac >= (int)pendChain.size())
+            break;
+
+        int last = std::min(curr_jac - 2, (int)pendChain.size() - 1);
+        int first = prev_jac - 1;
+
+        for (int idx = last; idx >= first; --idx)
+        {
+            if (inserted[idx])
+                continue;
+
+            typename U::iterator searchEnd =
+                findPartner(mainChain, pendChain[idx].back().partner);
+            typename U::iterator pos =
+                std::upper_bound(mainChain.begin(), searchEnd, pendChain[idx],
+                                 comparing<typename U::value_type>);
+            mainChain.insert(pos, pendChain[idx]);
+            inserted[idx] = true;
         }
 
         prev_jac = curr_jac;
     }
 
-    while (!pendChain.empty())
+    for (int idx = (int)pendChain.size() - 1; idx >= 0; --idx)
     {
-        pairandBound pend = pendChain.back();
+        if (inserted[idx])
+            continue;
 
-        typename T::iterator partnerIt = findPartner(mainChain, pend.partner.empty() ? -1 : pend.partner.back());
-        typename T::iterator searchEnd = (partnerIt == mainChain.end())
-                                             ? mainChain.end()
-                                             : partnerIt + 1;
-        typename T::iterator pos =
-            std::upper_bound(mainChain.begin(), searchEnd, pend, comparing);
-        !pend.partner.empty() ? pend.partner.pop_back() : void(); // remove the partner value after using it
-        mainChain.insert(pos, pend);
-        if (!pend.friends.empty())
-        {
-            mainChain.insert(pos, pend.friends.begin(), pend.friends.end());
-            pend.friends.clear();
-        }
-        pendChain.pop_back();
+        typename U::iterator searchEnd =
+            findPartner(mainChain, pendChain[idx].back().partner);
+        typename U::iterator pos =
+            std::upper_bound(mainChain.begin(), searchEnd, pendChain[idx],
+                             comparing<typename U::value_type>);
+        mainChain.insert(pos, pendChain[idx]);
     }
-    container = mainChain;
+    if (!s.empty())
+        mainChain.push_back(s);
+    fullContainer(container, mainChain);
+    pendChain.clear();
 }
 
-void PmergeMe::run()
+template <typename T, typename U>
+void start(T &container, U &mainChain, U &pendChain)
 {
     pairandBound dStraggler;
-    bool dOdd = (dnumbers.size() % 2 != 0);
+    bool dOdd = (container.size() % 2 != 0);
     if (dOdd)
     {
-        dStraggler = dnumbers.back();
-        dnumbers.pop_back();
+        dStraggler = container.back();
+        container.pop_back();
     }
     Ncompare = 0;
-    pairingSwap(dnumbers, 2);
+    pairingSwap(container, mainChain, pendChain, 2);
     if (dOdd)
     {
-        std::deque<pairandBound>::iterator pos =
-            std::upper_bound(dnumbers.begin(), dnumbers.end(), dStraggler, comparing);
-        dnumbers.insert(pos, dStraggler);
+        typename T::iterator pos =
+            std::upper_bound(container.begin(), container.end(), dStraggler, comparingg);
+        container.insert(pos, dStraggler);
     }
-    PrintNumbers(dnumbers);
+}
+void PmergeMe::run()
+{
+    {
+        std::cout << "Before: ";
+        PrintNumbers(vnumbers);
+        std::cout << std::endl;
+        std::clock_t st = std::clock();
+        start(vnumbers, mainChain2, pendChain2); //  run the algorithm on the vector
+        std::clock_t end = std::clock();
+
+        double elapsed =
+            static_cast<double>(end - st) / CLOCKS_PER_SEC;
+        std::cout << "After: ";
+        PrintNumbers(vnumbers);
+        std::cout << std::endl;
+
+        std::cout
+            << "Time to process a range of "
+            << vnumbers.size()
+            << " elements with std::vector : "
+            << elapsed * 1000000
+            << " us"
+            << std::endl;
+    }
+
+    std::clock_t st = std::clock();
+    start(dnumbers, mainChain, pendChain); //  run the algorithm on the vector
+    std::clock_t end = std::clock();
+
+    double elapsed =
+        static_cast<double>(end - st) / CLOCKS_PER_SEC;
+
+    std::cout
+        << "Time to process a range of "
+        << dnumbers.size()
+        << " elements with std::deque : "
+        << elapsed * 1000000
+        << " us"
+        << std::endl;
 }

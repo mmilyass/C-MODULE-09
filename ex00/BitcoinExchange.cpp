@@ -7,6 +7,7 @@ void BitcoinExchange::StoreData()
     if (!file)
         throw std::runtime_error("Error ! cannot open file.");
     std::string line;
+    // skip the first line but you need to check whether it is having value | data
     std::getline(file, line);
     while (std::getline(file, line))
     {
@@ -14,6 +15,8 @@ void BitcoinExchange::StoreData()
         if (comas == std::string::npos)
             throw std::runtime_error("data file not correct.");
         this->data[line.substr(0, comas)] = std::strtod(line.substr(comas + 1).c_str(), &end);
+        if (*end != '\0')
+            throw std::runtime_error("data file not correct.");
     }
 }
 
@@ -52,9 +55,7 @@ void parseKey(std::string &key)
     int year = std::atoi(yyear.c_str());
     int month = std::atoi(mmonth.c_str());
     int day = std::atoi(dday.c_str());
-    if (key[4] != '-' || key[7] != '-' || year < 0)
-        throw std::runtime_error("Error: bad input => " + key);
-    if (month < 1 || month > 12)
+    if (key[4] != '-' || key[7] != '-' || year < 0 || month < 1 || month > 12)
         throw std::runtime_error("Error: bad input => " + key);
     if (month == 2)
     {
@@ -73,14 +74,21 @@ double parseValue(std::string &value)
     double var = std::strtod(value.c_str(), &whatHappend);
     while (std::isspace(*whatHappend))
         ++whatHappend;
-    value.erase(remove(value.begin(), value.end(), ' '), value.end());
     if (*whatHappend != '\0')
         throw std::runtime_error("Error: invalid/not-found value.");
     if (var > 1000)
         throw std::runtime_error("Error: too large value.");
     if (var < 0)
         throw std::runtime_error("Error: not a positive value.");
+    value.erase(remove(value.begin(), value.end(), ' '), value.end());
     return var;
+}
+
+void parsFirstLine(std::string &line)
+{
+    line.erase(remove(line.begin(), line.end(), ' '), line.end());
+    if (line != "date|value")
+        throw std::runtime_error("first line does not match : date | value");
 }
 
 void BitcoinExchange::ParseInput()
@@ -96,6 +104,7 @@ void BitcoinExchange::ParseInput()
     double exchange_rate;
     std::string line;
     std::getline(file, line); // to skip the first line
+    parsFirstLine(line);
     while (std::getline(file, line))
     {
         try
@@ -104,16 +113,14 @@ void BitcoinExchange::ParseInput()
                 continue;
             size_t index = line.find('|');
             if (index == std::string::npos)
-            {
                 throw std::runtime_error("Error: bad input => " + line);
-            }
             key = line.substr(0, index);
             value = line.substr(index + 1);
 
             parseKey(key);
             dvalue = parseValue(value);
             std::map<std::string, double>::iterator it = data.lower_bound(key);
-            if (it != data.end() && it->first == key) // if the lower bound find the key it sets the iterator to the end the exact match
+            if (it != data.end() && it->first == key) // if the lower bound find the key it sets the iterator to the exact match
             {
                 exchange_rate = it->second;
             }

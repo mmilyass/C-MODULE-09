@@ -1,4 +1,4 @@
-#include "RNP.hpp"
+#include "RPN.hpp"
 
 void RNP::parseTokens(char *tokens)
 {
@@ -57,6 +57,8 @@ int RNP::evalRPN(char *tokens)
                     st.push(value1 * value2);
                     break;
                 case '/':
+                    if (value2 == 0)
+                        throw std::runtime_error("Error: division by zero");
                     st.push(value1 / value2);
                     break;
                 default:
@@ -64,7 +66,7 @@ int RNP::evalRPN(char *tokens)
                 }
             }
         }
-        if (st.size() > 1)
+        if (st.size() < 1)
             throw std::runtime_error("Error");
         else
             std::cout << st.top() << std::endl;

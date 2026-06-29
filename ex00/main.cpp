@@ -10,7 +10,6 @@ int main(int ac, char **av)
     try
     {
         BitcoinExchange btc(av[1]);
-        // btc.PrintData();
         btc.ParseInput();
     }
     catch (const std::exception &e)
